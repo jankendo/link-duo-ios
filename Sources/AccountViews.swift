@@ -234,7 +234,7 @@ struct CustomWordsView: View {
                             .frame(width: 48, height: 48).background(Palette.teal, in: RoundedRectangle(cornerRadius: 13))
                     }.buttonStyle(.plain).accessibilityLabel("単語を追加")
                 }
-                if model.customWords.isEmpty {
+                if model.settings.customWords.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "text.badge.plus").font(.system(size: 24)).foregroundStyle(Palette.secondary)
                         Text("まだ単語がありません").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.secondary)
