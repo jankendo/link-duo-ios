@@ -1,0 +1,75 @@
+name: iOS Release IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and archive unsigned iOS app
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Run game engine tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIMULATOR_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); devices=[d["udid"] for group in data["devices"].values() for d in group if "iPhone" in d["name"] and d["state"] in ("Booted", "Shutdown", "Available")]; print(devices[0] if devices else "")')"
+          test -n "$SIMULATOR_ID"
+          xcodebuild test \
+            -project LINKDUO.xcodeproj \
+            -scheme LINKDUO \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO
+
+      - name: Archive iphoneos Release without signing
+        run: >-
+          xcodebuild archive
+          -project LINKDUO.xcodeproj
+          -scheme LINKDUO
+          -configuration Release
+          -sdk iphoneos
+          -destination 'generic/platform=iOS'
+          -archivePath build/LINKDUO.xcarchive
+          -derivedDataPath build/DerivedData
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=
+
+      - name: Package and verify IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="build/LINKDUO.xcarchive/Products/Applications/LINKDUO.app"
+          test -d "$APP_PATH"
+          test -f "$APP_PATH/Info.plist"
+          mkdir -p build/Payload
+          ditto "$APP_PATH" build/Payload/LINKDUO.app
+          cd build
+          ditto -c -k --sequesterRsrc --keepParent Payload LINKDUO.ipa
+          unzip -t LINKDUO.ipa
+          test -s LINKDUO.ipa
+          shasum -a 256 LINKDUO.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LINK-DUO-iOS-IPA
+          path: build/LINKDUO.ipa
+          if-no-files-found: error
+          retention-days: 30
