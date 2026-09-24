@@ -353,7 +353,7 @@ struct PlayingView: View {
                 clueEntry
                 board
                     .frame(maxWidth: 520)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 HStack(spacing: 5) {
                     Image(systemName: "hand.tap").font(.system(size: 11))
                     Text("単語をタップして推理 · ✓ 仲間  — 一般")
