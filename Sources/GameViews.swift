@@ -353,7 +353,7 @@ struct PlayingView: View {
                 clueEntry
                 board
                     .frame(maxWidth: 520)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 HStack(spacing: 5) {
                     Image(systemName: "hand.tap").font(.system(size: 11))
                     Text("単語をタップして推理 · ✓ 仲間  — 一般")
@@ -422,10 +422,11 @@ struct PlayingView: View {
                 Image(systemName: "plus").font(.system(size: 11, weight: .bold)).frame(width: 44, height: 44).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 11))
             }.buttonStyle(.plain).accessibilityLabel("ヒント数を増やす")
             Button(action: saveClue) {
-                Text("記録").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 11).frame(height: 44).background(Palette.teal, in: RoundedRectangle(cornerRadius: 11))
+                Text("記録").font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(clueDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Palette.secondary : .white)
+                    .padding(.horizontal, 11).frame(height: 44)
+                    .background(clueDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Palette.canvas : Palette.teal, in: RoundedRectangle(cornerRadius: 11))
             }.buttonStyle(.plain).disabled(clueDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .opacity(clueDraft.isEmpty ? 0.45 : 1)
         }
         .padding(.horizontal, 8).frame(height: 54)
         .background(Palette.card, in: RoundedRectangle(cornerRadius: 15, style: .continuous))

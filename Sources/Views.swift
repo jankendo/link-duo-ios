@@ -331,41 +331,44 @@ struct MissionArtwork: View {
     private let active: Set<Int> = [2, 6, 10, 12, 18, 21, 24]
     var body: some View {
         GeometryReader { proxy in
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Palette.navy)
-                Circle().stroke(.white.opacity(0.08), lineWidth: 1)
-                    .frame(width: 235, height: 235).offset(x: proxy.size.width - 163, y: -125)
-                Circle().stroke(.white.opacity(0.08), lineWidth: 1)
-                    .frame(width: 325, height: 325).offset(x: proxy.size.width - 218, y: -169)
-                VStack(alignment: .leading, spacing: 9) {
-                    HStack {
-                        Eyebrow(text: "THE FIELD / 01", color: Palette.mint)
-                        Spacer()
-                        Image(systemName: "circle.hexagongrid")
-                            .font(.system(size: 18, weight: .light)).foregroundStyle(Palette.mint)
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    Eyebrow(text: "THE FIELD / 01", color: Palette.mint)
+                    Spacer()
+                    Image(systemName: "circle.hexagongrid")
+                        .font(.system(size: 18, weight: .light)).foregroundStyle(Palette.mint)
+                }
+                Spacer(minLength: 0)
+                HStack(alignment: .bottom, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("25 : 15")
+                            .font(.system(size: 40, weight: .light, design: .rounded))
+                            .tracking(-2).monospacedDigit().foregroundStyle(.white)
+                        Text("見えている言葉。隠された答え。")
+                            .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
-                    HStack(alignment: .bottom, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("25 : 15")
-                                .font(.system(size: 40, weight: .light, design: .rounded))
-                                .tracking(-2).monospacedDigit().foregroundStyle(.white)
-                            Text("見えている言葉。隠された答え。")
-                                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.7))
-                                .fixedSize(horizontal: false, vertical: true)
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(13), spacing: 4), count: 5), spacing: 4) {
+                        ForEach(0..<25, id: \.self) { i in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(active.contains(i) ? Palette.lime : .white.opacity(0.22))
+                                .frame(width: 13, height: 13)
                         }
-                        Spacer(minLength: 0)
-                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(13), spacing: 4), count: 5), spacing: 4) {
-                            ForEach(0..<25, id: \.self) { i in
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(active.contains(i) ? Palette.lime : .white.opacity(0.22))
-                                    .frame(width: 13, height: 13)
-                            }
-                        }
-                        .frame(width: 81)
                     }
+                    .frame(width: 81)
                 }
-                .padding(23)
+            }
+            .padding(23)
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .background {
+                ZStack {
+                    Palette.navy
+                    Circle().stroke(.white.opacity(0.08), lineWidth: 1)
+                        .frame(width: 235, height: 235).offset(x: proxy.size.width * 0.38, y: -105)
+                    Circle().stroke(.white.opacity(0.08), lineWidth: 1)
+                        .frame(width: 325, height: 325).offset(x: proxy.size.width * 0.36, y: -150)
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
