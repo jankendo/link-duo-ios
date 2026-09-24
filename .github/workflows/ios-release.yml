@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           SIMULATOR_ID="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; data=json.load(sys.stdin); devices=[d["udid"] for group in data["devices"].values() for d in group if "iPhone" in d["name"]]; print(devices[0] if devices else "")')"
           if [ -z "$SIMULATOR_ID" ]; then
-            SIMULATOR_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); devices=[d["udid"] for group in data["devices"].values() for d in group if "iPhone" in d["name"]; print(devices[0] if devices else "")')"
+            SIMULATOR_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); devices=[d["udid"] for group in data["devices"].values() for d in group if "iPhone" in d["name"]]; print(devices[0] if devices else "")')"
             test -n "$SIMULATOR_ID"
             xcrun simctl boot "$SIMULATOR_ID"
           fi
