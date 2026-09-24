@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build:
     name: Test and archive unsigned iOS app
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 35
     steps:
       - name: Check out source
@@ -36,6 +36,39 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath build/DerivedData \
             -parallel-testing-enabled NO
+
+      - name: Capture iPhone UI previews
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIMULATOR_ID="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; data=json.load(sys.stdin); devices=[d["udid"] for group in data["devices"].values() for d in group if "iPhone" in d["name"]]; print(devices[0] if devices else "")')"
+          if [ -z "$SIMULATOR_ID" ]; then
+            SIMULATOR_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); devices=[d["udid"] for group in data["devices"].values() for d in group if "iPhone" in d["name"]; print(devices[0] if devices else "")')"
+            test -n "$SIMULATOR_ID"
+            xcrun simctl boot "$SIMULATOR_ID"
+          fi
+          test -n "$SIMULATOR_ID"
+          APP_PATH="build/DerivedData/Build/Products/Debug-iphonesimulator/LINKDUO.app"
+          test -d "$APP_PATH"
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          xcrun simctl install "$SIMULATOR_ID" "$APP_PATH"
+          mkdir -p build/ui-previews
+          APP_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_PATH/Info.plist")
+          xcrun simctl launch "$SIMULATOR_ID" "$APP_ID" --ui-preview-playing
+          sleep 3
+          xcrun simctl io "$SIMULATOR_ID" screenshot build/ui-previews/playing.png
+          xcrun simctl terminate "$SIMULATOR_ID" "$APP_ID"
+          xcrun simctl launch "$SIMULATOR_ID" "$APP_ID" --ui-preview-home
+          sleep 2
+          xcrun simctl io "$SIMULATOR_ID" screenshot build/ui-previews/home.png
+
+      - name: Upload UI preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LINK-DUO-UI-Preview
+          path: build/ui-previews/*.png
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Archive iphoneos Release without signing
         run: >-

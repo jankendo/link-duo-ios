@@ -5,18 +5,52 @@ enum AppScreen: Equatable {
 }
 
 enum Palette {
-    static let canvas = Color(hex: 0xF5F4F0)
+    static let canvas = Color(hex: 0xF3F2ED)
     static let card = Color(hex: 0xFFFFFF)
-    static let ink = Color(hex: 0x18232B)
-    static let secondary = Color(hex: 0x73808A)
-    static let line = Color(hex: 0xE3E5E2)
-    static let teal = Color(hex: 0x217C76)
-    static let tealLight = Color(hex: 0xD9EFEB)
+    static let ink = Color(hex: 0x15252A)
+    static let secondary = Color(hex: 0x677579)
+    static let line = Color(hex: 0xDDE2DD)
+    static let teal = Color(hex: 0x146F68)
+    static let tealLight = Color(hex: 0xDDF1E9)
+    static let mint = Color(hex: 0xBCE8D5)
+    static let lime = Color(hex: 0xD8F36B)
     static let amber = Color(hex: 0xB77832)
     static let amberLight = Color(hex: 0xF6EBD7)
     static let danger = Color(hex: 0x9E4747)
     static let dangerLight = Color(hex: 0xF6E5E2)
-    static let navy = Color(hex: 0x17242F)
+    static let navy = Color(hex: 0x142B31)
+}
+
+struct Eyebrow: View {
+    let text: String
+    var color: Color = Palette.teal
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 10, weight: .heavy, design: .monospaced))
+            .tracking(1.8)
+            .foregroundStyle(color)
+    }
+}
+
+struct QuietGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: Circle())
+        } else {
+            content.background(.regularMaterial, in: Circle())
+        }
+    }
+}
+
+struct InstrumentPanel<Content: View>: View {
+    let content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    var body: some View {
+        content
+            .background(Palette.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Palette.line.opacity(0.8), lineWidth: 1))
+            .shadow(color: Palette.navy.opacity(0.045), radius: 18, y: 7)
+    }
 }
 
 extension Color {
@@ -93,6 +127,23 @@ struct ContentView: View {
         .onAppear {
             guard !didRouteInitialTutorial else { return }
             didRouteInitialTutorial = true
+#if DEBUG
+            let previewArgs = ProcessInfo.processInfo.arguments
+            if previewArgs.contains("--ui-preview-playing") {
+                model.finishTutorial()
+                if model.startNewGame() {
+                    model.closeSecret()
+                    model.acknowledgePass()
+                    screen = .game
+                }
+                return
+            }
+            if previewArgs.contains("--ui-preview-home") {
+                model.finishTutorial()
+                screen = .home
+                return
+            }
+#endif
             if !model.tutorialSeen { screen = .tutorial }
         }
     }
@@ -112,23 +163,22 @@ struct ScreenHeader: View {
                 Button(action: onBack) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 42, height: 42)
-                        .background(Palette.card, in: Circle())
-                        .overlay(Circle().stroke(Palette.line, lineWidth: 1))
+                        .frame(width: 44, height: 44)
+                        .modifier(QuietGlass())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("戻る")
             }
             VStack(alignment: .leading, spacing: 2) {
                 if let eyebrow {
-                    Text(eyebrow.uppercased()).font(.system(size: 9, weight: .bold, design: .rounded)).tracking(1.6).foregroundStyle(Palette.secondary)
+                    Eyebrow(text: eyebrow, color: Palette.secondary)
                 }
-                Text(title).font(.system(size: 21, weight: .bold, design: .rounded)).foregroundStyle(Palette.ink)
+                Text(title).font(.system(size: 23, weight: .bold, design: .rounded)).tracking(-0.7).foregroundStyle(Palette.ink)
             }
             Spacer(minLength: 8)
             if let trailing { trailing }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 22)
         .padding(.top, 8)
         .padding(.bottom, 8)
     }
@@ -144,14 +194,16 @@ struct PrimaryAction: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 if let symbol { Image(systemName: symbol).font(.system(size: 15, weight: .semibold)) }
-                Text(title).font(.system(size: 16, weight: .bold, design: .rounded))
+                Text(title).font(.system(size: 16, weight: .bold, design: .rounded)).tracking(0.2)
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold)).opacity(0.72)
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 19)
-            .frame(minHeight: 56)
-            .background(disabled ? Palette.secondary : Palette.teal, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+            .frame(minHeight: 58)
+            .background(disabled ? Palette.secondary : Palette.navy, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.14), lineWidth: 1))
+            .shadow(color: disabled ? .clear : Palette.navy.opacity(0.15), radius: 13, y: 6)
         }
         .buttonStyle(PressableButtonStyle())
         .disabled(disabled)
@@ -173,9 +225,9 @@ struct SecondaryAction: View {
             }
             .foregroundStyle(Palette.ink)
             .padding(.horizontal, 15)
-            .frame(minHeight: 50)
-            .background(Palette.card, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 15).stroke(Palette.line, lineWidth: 1))
+            .frame(minHeight: 52)
+            .background(Palette.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Palette.line, lineWidth: 1))
         }
         .buttonStyle(PressableButtonStyle())
     }
@@ -219,61 +271,103 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 23) {
+            VStack(alignment: .leading, spacing: 21) {
                 HStack(spacing: 12) {
-                    LogoMark()
+                    LogoMark(size: 42)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("LINK DUO").font(.system(size: 14, weight: .black, design: .rounded)).tracking(2.4)
-                        Text("ふたりの発想をつなぐ").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
+                        Text("LINK DUO").font(.system(size: 15, weight: .black, design: .rounded)).tracking(2.2)
+                        Text("COOPERATIVE WORD GAME").font(.system(size: 8, weight: .bold, design: .monospaced)).tracking(1.1).foregroundStyle(Palette.secondary)
                     }
                     Spacer()
                     Button { onNavigate(.settings) } label: {
                         Image(systemName: "slider.horizontal.3").font(.system(size: 16, weight: .medium)).foregroundStyle(Palette.ink)
-                            .frame(width: 44, height: 44).background(Palette.card, in: Circle()).overlay(Circle().stroke(Palette.line, lineWidth: 1))
+                            .frame(width: 44, height: 44).modifier(QuietGlass())
                     }.buttonStyle(.plain).accessibilityLabel("設定")
                 }
-                .padding(.top, 12)
+                .padding(.top, 9)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("ひとつのヒントから、\nふたりの答えへ。")
-                        .font(.system(size: 32, weight: .bold, design: .rounded)).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
-                    Text("言葉の奥にあるつながりを見つけよう。\n25枚の中から、15人の仲間を探し出します。")
-                        .font(.system(size: 14, weight: .regular)).lineSpacing(5).foregroundStyle(Palette.secondary)
+                VStack(alignment: .leading, spacing: 11) {
+                    Eyebrow(text: "TWO MINDS · ONE MISSION")
+                    Text("言葉でつなぐ、\nふたりの直感。")
+                        .font(.system(size: 34, weight: .bold, design: .rounded)).tracking(-1.8)
+                        .lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                    Text("秘密の地図を頼りに、25の言葉から\n15の仲間を見つけよう。")
+                        .font(.system(size: 14, weight: .medium)).lineSpacing(4).foregroundStyle(Palette.secondary)
                 }
-                .padding(.top, 10)
+                .padding(.top, 8)
 
-                HStack(spacing: 8) {
-                    FeaturePill(symbol: "person.2.fill", title: "2人協力")
-                    FeaturePill(symbol: "iphone.gen3", title: "1台で交代")
-                    FeaturePill(symbol: "sparkles", title: "毎回新しい盤面")
-                }
+                MissionArtwork()
+                    .frame(height: 205)
+                    .accessibilityHidden(true)
 
                 VStack(spacing: 10) {
-                    PrimaryAction(title: "NEW GAME", symbol: "plus") { onNavigate(.setup) }
+                    PrimaryAction(title: "新しいゲームを始める", symbol: "sparkle") { onNavigate(.setup) }
                     if model.hasResumableGame {
                         SecondaryAction(title: "つづきから", symbol: "arrow.clockwise") {
                             if model.resumeGame() { onNavigate(.game) }
                         }
                     }
                 }
-                .padding(.top, 4)
-
                 HStack(spacing: 10) {
                     SecondaryAction(title: "遊び方", symbol: "book.closed") { onNavigate(.rules) }
                     SecondaryAction(title: "成績", symbol: "chart.bar.xaxis") { onNavigate(.stats) }
                 }
-
-                HStack {
-                    Image(systemName: "iphone.and.arrow.forward").font(.system(size: 13)).foregroundStyle(Palette.teal)
-                    Text("秘密を見るときだけ、画面を自分側に向けて")
-                        .font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.secondary)
+                HStack(spacing: 7) {
+                    Image(systemName: "iphone.gen3").foregroundStyle(Palette.teal)
+                    Text("スマホ1台・2人専用・オフラインで遊べます")
+                        .foregroundStyle(Palette.secondary)
                 }
-                .padding(.top, 1)
-                .padding(.bottom, 18)
+                .font(.system(size: 11, weight: .medium))
+                .padding(.bottom, 15)
             }
             .padding(.horizontal, 22)
-            .frame(maxWidth: 560)
+            .frame(maxWidth: 540)
             .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+struct MissionArtwork: View {
+    private let active: Set<Int> = [2, 6, 10, 12, 18, 21, 24]
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Palette.navy)
+                Circle().stroke(.white.opacity(0.08), lineWidth: 1)
+                    .frame(width: 235, height: 235).offset(x: proxy.size.width - 163, y: -125)
+                Circle().stroke(.white.opacity(0.08), lineWidth: 1)
+                    .frame(width: 325, height: 325).offset(x: proxy.size.width - 218, y: -169)
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack {
+                        Eyebrow(text: "THE FIELD / 01", color: Palette.mint)
+                        Spacer()
+                        Image(systemName: "circle.hexagongrid")
+                            .font(.system(size: 18, weight: .light)).foregroundStyle(Palette.mint)
+                    }
+                    Spacer(minLength: 0)
+                    HStack(alignment: .bottom, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("25 : 15")
+                                .font(.system(size: 40, weight: .light, design: .rounded))
+                                .tracking(-2).monospacedDigit().foregroundStyle(.white)
+                            Text("見えている言葉。隠された答え。")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.7))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(13), spacing: 4), count: 5), spacing: 4) {
+                            ForEach(0..<25, id: \.self) { i in
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(active.contains(i) ? Palette.lime : .white.opacity(0.22))
+                                    .frame(width: 13, height: 13)
+                            }
+                        }
+                        .frame(width: 81)
+                    }
+                }
+                .padding(23)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
     }
 }

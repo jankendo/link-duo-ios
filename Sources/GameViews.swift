@@ -56,9 +56,9 @@ struct SecretView: View {
 
                 VStack(spacing: compact ? 11 : 15) {
                     HStack {
-                        Text("LINK DUO").font(.system(size: 11, weight: .black, design: .rounded)).tracking(2).foregroundStyle(.white.opacity(0.7))
+                        Text("LINK DUO").font(.system(size: 12, weight: .black, design: .rounded)).tracking(2).foregroundStyle(.white.opacity(0.86))
                         Spacer()
-                        Label("PRIVATE MAP", systemImage: "lock.fill")
+                        Label("PRIVATE / \(game.turnLimit - game.turnRemaining + 1)", systemImage: "lock.fill")
                             .font(.system(size: 10, weight: .bold, design: .rounded)).tracking(1)
                             .foregroundStyle(Palette.tealLight)
                     }
@@ -102,6 +102,14 @@ struct SecretView: View {
                         }
                     }
                     .frame(height: mapHeight)
+                    .overlay(alignment: .topLeading) {
+                        if !hold.isRevealed {
+                            Text("HIDDEN FIELD")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .tracking(1.5).foregroundStyle(.white.opacity(0.58))
+                                .padding(11)
+                        }
+                    }
 
                     Spacer(minLength: 0)
                     holdControl
@@ -138,7 +146,7 @@ struct SecretView: View {
         VStack(spacing: 8) {
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: 17, style: .continuous)
-                    .fill(hold.isRevealed ? Palette.tealLight : Color.white)
+                    .fill(hold.isRevealed ? Palette.lime : Color.white)
                 HStack(spacing: 9) {
                     Image(systemName: hold.isRevealed ? "eye.fill" : "hand.point.up.left.fill")
                     Text(hold.isRevealed ? "秘密マップを表示中" : "長押しして秘密を見る")
@@ -239,18 +247,27 @@ struct PassDeviceView: View {
         ZStack {
             Palette.navy.ignoresSafeArea()
             VStack(spacing: 20) {
+                HStack {
+                    Eyebrow(text: "LINK DUO / HANDOFF", color: Palette.mint)
+                    Spacer()
+                    Image(systemName: "lock.shield.fill").foregroundStyle(Palette.mint)
+                }
                 Spacer()
                 ZStack {
-                    Circle().stroke(Color.white.opacity(0.12), lineWidth: 1).frame(width: 184, height: 184)
-                    Circle().fill(Color.white.opacity(0.05)).frame(width: 148, height: 148)
-                    Image(systemName: "lock.fill").font(.system(size: 46, weight: .light)).foregroundStyle(Palette.tealLight)
+                    Circle().stroke(Color.white.opacity(0.15), lineWidth: 1).frame(width: 212, height: 212)
+                    Circle().stroke(Color.white.opacity(0.1), lineWidth: 1).frame(width: 176, height: 176)
+                    Circle().fill(Palette.mint.opacity(0.11)).frame(width: 132, height: 132)
+                    Image(systemName: "iphone.gen3").font(.system(size: 48, weight: .ultraLight)).foregroundStyle(Palette.mint)
+                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.navy).frame(width: 35, height: 35)
+                        .background(Palette.lime, in: Circle()).offset(x: 65, y: 40)
                 }
                 VStack(spacing: 8) {
-                    Text("PASS THE DEVICE").font(.system(size: 9, weight: .bold, design: .rounded)).tracking(2).foregroundStyle(.white.opacity(0.52))
+                    Eyebrow(text: "PASS THE DEVICE", color: Palette.mint)
                     Text("\(game.playerName(nextPlayer))へ\n端末を渡してください")
-                        .font(.system(size: 24, weight: .bold, design: .rounded)).multilineTextAlignment(.center).lineSpacing(3).foregroundStyle(.white)
+                        .font(.system(size: 27, weight: .bold, design: .rounded)).tracking(-0.7).multilineTextAlignment(.center).lineSpacing(3).foregroundStyle(.white)
                     Text("秘密マップは閉じています")
-                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.62)).padding(.top, 2)
+                        .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.7)).padding(.top, 2)
                 }
                 if game.lastEvent == .neutral {
                     Label("一般ワードでした · ターン終了", systemImage: "minus.circle.fill")
@@ -263,8 +280,8 @@ struct PassDeviceView: View {
                         Text("受け取りました").font(.system(size: 15, weight: .bold, design: .rounded))
                         Image(systemName: "arrow.right").font(.system(size: 13, weight: .bold))
                     }
-                    .foregroundStyle(Palette.navy).frame(maxWidth: .infinity, minHeight: 56)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .foregroundStyle(Palette.navy).frame(maxWidth: .infinity, minHeight: 58)
+                    .background(Palette.lime, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(PressableButtonStyle()).padding(.bottom, 10)
             }
@@ -286,65 +303,65 @@ struct PlayingView: View {
 
     var body: some View {
         GeometryReader { outer in
-            VStack(spacing: 7) {
+            VStack(spacing: 8) {
                 HStack(spacing: 8) {
                     Button { showExitPrompt = true } label: {
                         Image(systemName: "chevron.down").font(.system(size: 14, weight: .bold))
-                            .frame(width: 44, height: 44).background(Palette.card, in: Circle()).overlay(Circle().stroke(Palette.line, lineWidth: 1))
+                            .frame(width: 44, height: 44).modifier(QuietGlass())
                     }.buttonStyle(.plain).accessibilityLabel("ゲームを閉じる")
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(game.playerName(game.currentClueGiver)) がヒント")
-                            .font(.system(size: 13, weight: .bold, design: .rounded)).lineLimit(1)
-                        Text("\(game.playerName(guesser)) が推理")
-                            .font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.secondary).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Eyebrow(text: "LINK DUO / LIVE")
+                        Text("\(game.playerName(game.currentClueGiver)) → \(game.playerName(guesser))")
+                            .font(.system(size: 12, weight: .bold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
                     }
                     Spacer(minLength: 2)
                     Button { showRules = true } label: {
                         Image(systemName: "questionmark")
-                            .font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.secondary)
-                            .frame(width: 44, height: 44).background(Palette.card, in: Circle()).overlay(Circle().stroke(Palette.line, lineWidth: 1))
+                            .font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.ink)
+                            .frame(width: 44, height: 44).modifier(QuietGlass())
                     }.buttonStyle(.plain).accessibilityLabel("遊び方")
                 }
                 .frame(height: 44)
 
-                VStack(spacing: 6) {
-                    HStack {
-                        Text("TURN \(game.turnLimit - game.turnRemaining + 1)")
-                            .font(.system(size: 9, weight: .bold, design: .rounded)).tracking(1.2).foregroundStyle(Palette.secondary)
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Text("\(game.turnRemaining)").font(.system(size: 16, weight: .bold, design: .rounded)).monospacedDigit()
-                            Text("ターン残り").font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.secondary)
-                        }
-                        Spacer()
-                        HStack(alignment: .firstTextBaseline, spacing: 2) {
-                            Text("\(game.foundIndices.count)").font(.system(size: 17, weight: .bold, design: .rounded)).foregroundStyle(Palette.teal).monospacedDigit()
-                            Text("/ 15").font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.secondary)
+                HStack(spacing: 13) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Eyebrow(text: "TURN \(game.turnLimit - game.turnRemaining + 1)", color: Palette.mint)
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text("\(game.turnRemaining)").font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
+                            Text("残り").font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.7))
                         }
                     }
-                    GeometryReader { bar in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color(hex: 0xE8EAE7))
-                            Capsule().fill(Palette.teal).frame(width: bar.size.width * CGFloat(game.foundIndices.count) / 15)
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: 7) {
+                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                            Text("\(game.foundIndices.count)").font(.system(size: 24, weight: .semibold, design: .rounded)).monospacedDigit()
+                            Text("/ 15  仲間").font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.7))
                         }
-                    }.frame(height: 5)
+                        HStack(spacing: 3) {
+                            ForEach(0..<15, id: \.self) { index in
+                                Capsule().fill(index < game.foundIndices.count ? Palette.lime : .white.opacity(0.22))
+                                    .frame(width: 6, height: 5)
+                            }
+                        }.accessibilityHidden(true)
+                    }
                 }
-                .padding(.horizontal, 13).padding(.vertical, 9)
-                .background(Palette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.line, lineWidth: 1))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 19).frame(height: 78)
+                .background(Palette.navy, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .accessibilityElement(children: .combine)
 
                 clueEntry
                 board
                     .frame(maxWidth: 520)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 HStack(spacing: 5) {
-                    Image(systemName: "hand.tap").font(.system(size: 10))
-                    Text("カードを選択して推理。色と記号の両方で状態を確認できます。")
-                        .font(.system(size: 9, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
-                }.foregroundStyle(Palette.secondary).frame(height: 17)
+                    Image(systemName: "hand.tap").font(.system(size: 11))
+                    Text("単語をタップして推理 · ✓ 仲間  — 一般")
+                        .font(.system(size: 11, weight: .medium)).lineLimit(1).minimumScaleFactor(0.8)
+                }.foregroundStyle(Palette.secondary).frame(height: 18)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 5)
+            .padding(.horizontal, 15)
+            .padding(.top, 6)
             .padding(.bottom, 4)
             .frame(maxWidth: 540, maxHeight: .infinity)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -390,29 +407,29 @@ struct PlayingView: View {
     private var selectedWord: Word? { selectedIndex.map { game.words[$0] } }
 
     private var clueEntry: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "quote.bubble").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.teal)
-            TextField("ヒントを記録（口頭だけでもOK）", text: $clueDraft)
+        HStack(spacing: 5) {
+            Image(systemName: "quote.bubble.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.teal)
+            TextField("ヒント（任意）", text: $clueDraft)
                 .font(.system(size: 13, weight: .medium))
                 .submitLabel(.done)
                 .onSubmit(saveClue)
                 .accessibilityLabel("ヒントの単語")
             Button { clueCount = max(1, clueCount - 1) } label: {
-                Image(systemName: "minus").font(.system(size: 11, weight: .bold)).frame(width: 44, height: 44).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 10))
+                Image(systemName: "minus").font(.system(size: 11, weight: .bold)).frame(width: 44, height: 44).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 11))
             }.buttonStyle(.plain).accessibilityLabel("ヒント数を減らす")
             Text("\(clueCount)").font(.system(size: 13, weight: .bold, design: .rounded)).monospacedDigit().frame(minWidth: 13)
             Button { clueCount = min(9, clueCount + 1) } label: {
-                Image(systemName: "plus").font(.system(size: 11, weight: .bold)).frame(width: 44, height: 44).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 10))
+                Image(systemName: "plus").font(.system(size: 11, weight: .bold)).frame(width: 44, height: 44).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 11))
             }.buttonStyle(.plain).accessibilityLabel("ヒント数を増やす")
             Button(action: saveClue) {
                 Text("記録").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 11).frame(height: 44).background(Palette.teal, in: RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal, 11).frame(height: 44).background(Palette.teal, in: RoundedRectangle(cornerRadius: 11))
             }.buttonStyle(.plain).disabled(clueDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .opacity(clueDraft.isEmpty ? 0.45 : 1)
         }
         .padding(.horizontal, 8).frame(height: 54)
-        .background(Palette.card, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 13).stroke(Palette.line, lineWidth: 1))
+        .background(Palette.card, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(Palette.line, lineWidth: 1))
         .overlay(alignment: .topTrailing) {
             if let clue = game.currentClue {
                 Text("\(clue.word) · \(clue.count)")
@@ -451,7 +468,10 @@ struct PlayingView: View {
             else { selectedIndex = index }
         } label: {
             VStack(spacing: 2) {
-                if let cellRole { Text(cellRole.symbol).font(.system(size: 11, weight: .black, design: .rounded)) }
+                if let cellRole {
+                    Text(cellRole.symbol).font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundStyle(isFound ? Palette.teal : Palette.secondary)
+                }
                 Text(word.text)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.9)
@@ -459,8 +479,9 @@ struct PlayingView: View {
             }
             .padding(.horizontal, 2)
             .frame(maxWidth: .infinity).frame(height: cellHeight)
-            .background(isFound ? Palette.tealLight : isNeutralForTurn ? Color(hex: 0xE9EBEA) : Palette.card, in: RoundedRectangle(cornerRadius: cellHeight < 54 ? 9 : 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: cellHeight < 54 ? 9 : 12).stroke(isFound ? Palette.teal.opacity(0.24) : Palette.line.opacity(isNeutralForTurn ? 0.75 : 1), lineWidth: 1))
+            .background(isFound ? Palette.tealLight : isNeutralForTurn ? Color(hex: 0xE3E7E3) : Palette.card, in: RoundedRectangle(cornerRadius: cellHeight < 54 ? 10 : 13, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: cellHeight < 54 ? 10 : 13).strokeBorder(isFound ? Palette.teal.opacity(0.45) : Palette.line.opacity(isNeutralForTurn ? 0.8 : 1), lineWidth: 1))
+            .shadow(color: isFound || isNeutralForTurn ? .clear : Palette.navy.opacity(0.07), radius: 3, y: 2)
         }
         .buttonStyle(CardTapStyle())
         .disabled(isUnavailable)
@@ -525,19 +546,27 @@ struct ResultView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 18) {
-                VStack(spacing: 11) {
-                    ZStack {
-                        Circle().fill((didWin ? Palette.teal : Palette.danger).opacity(0.10)).frame(width: 102, height: 102)
-                        Image(systemName: didWin ? "checkmark.seal.fill" : (game.lastEvent == .danger ? "exclamationmark.triangle.fill" : "hourglass.bottomhalf.filled"))
-                            .font(.system(size: 42, weight: .medium)).foregroundStyle(didWin ? Palette.teal : Palette.danger)
-                    }.padding(.top, 17)
-                    Text(didWin ? "MISSION COMPLETE" : "MISSION FAILED")
-                        .font(.system(size: 23, weight: .black, design: .rounded)).tracking(1.3)
-                        .foregroundStyle(didWin ? Palette.teal : Palette.danger)
-                    Text(didWin ? "ふたりで仲間を見つけました" : reason)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(Palette.ink)
+            VStack(spacing: 17) {
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: 25, style: .continuous).fill(Palette.navy)
+                    Circle().stroke(.white.opacity(0.12), lineWidth: 1).frame(width: 207, height: 207).offset(x: 205, y: -110)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Eyebrow(text: "LINK DUO / RESULT", color: Palette.mint)
+                            Spacer()
+                            Image(systemName: didWin ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                .font(.system(size: 30)).foregroundStyle(didWin ? Palette.lime : Color(hex: 0xE6A09A))
+                        }
+                        Spacer(minLength: 9)
+                        Text(didWin ? "MISSION\nCOMPLETE" : "MISSION\nFAILED")
+                            .font(.system(size: 32, weight: .black, design: .rounded)).tracking(-0.7)
+                            .lineSpacing(-2).foregroundStyle(.white)
+                        Text(didWin ? "ふたりで仲間を見つけました" : reason)
+                            .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.77))
+                    }
+                    .padding(23)
                 }
+                .frame(height: 215).clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
 
                 HStack(spacing: 8) {
                     ResultMetric(value: "\(game.foundIndices.count) / 15", label: "発見した仲間", symbol: "person.fill", tint: Palette.teal)
@@ -586,7 +615,7 @@ struct ResultView: View {
                 Text("この結果は、この端末の成績に保存されました。")
                     .font(.system(size: 10)).foregroundStyle(Palette.secondary).padding(.bottom, 14)
             }
-            .padding(.horizontal, 19).padding(.bottom, 15)
+            .padding(.horizontal, 19).padding(.top, 12).padding(.bottom, 15)
             .frame(maxWidth: 520).frame(maxWidth: .infinity)
         }
         .background(Palette.canvas)
