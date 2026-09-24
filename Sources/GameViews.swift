@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct GameView: View {
     @ObservedObject var model: AppModel
@@ -38,77 +39,174 @@ struct InvalidGameView: View {
 struct SecretView: View {
     @ObservedObject var model: AppModel
     let game: GameState
-    @GestureState private var holding = false
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 5), count: 5)
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var hold = SecretHoldState()
+    @State private var revealTask: Task<Void, Never>?
+    @State private var pressToken = UUID()
+    @State private var cancelledUntilRelease = false
 
     var body: some View {
         ZStack {
             Palette.navy.ignoresSafeArea()
-            VStack(spacing: 16) {
-                HStack {
-                    Text("LINK DUO").font(.system(size: 11, weight: .black, design: .rounded)).tracking(2).foregroundStyle(.white.opacity(0.6))
-                    Spacer()
-                    Text("PRIVATE MAP").font(.system(size: 9, weight: .bold, design: .rounded)).tracking(1.4).foregroundStyle(.white.opacity(0.45))
-                }
-                VStack(spacing: 7) {
-                    Image(systemName: holding ? "eye.fill" : "eye.slash.fill")
-                        .font(.system(size: 27, weight: .medium)).foregroundStyle(holding ? Palette.tealLight : Color.white.opacity(0.82))
-                    Text("\(game.playerName(game.currentClueGiver))だけが見てください")
-                        .font(.system(size: 19, weight: .bold, design: .rounded)).foregroundStyle(.white).multilineTextAlignment(.center)
-                    Text(holding ? "見終わったら、指を離してください" : "準備できたら、下のボタンを長押し")
-                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.66))
-                }.padding(.top, 8)
+            GeometryReader { geometry in
+                let compact = geometry.size.height < 630
+                let gap: CGFloat = compact ? 4 : 5
+                let tileHeight: CGFloat = compact ? 43 : 49
+                let mapHeight = tileHeight * 5 + gap * 4
 
-                if holding {
-                    LazyVGrid(columns: columns, spacing: 5) {
-                        ForEach(game.words.indices, id: \.self) { index in
-                            SecretMapCell(word: game.words[index], role: game.keys[game.currentClueGiver][index])
+                VStack(spacing: compact ? 11 : 15) {
+                    HStack {
+                        Text("LINK DUO").font(.system(size: 11, weight: .black, design: .rounded)).tracking(2).foregroundStyle(.white.opacity(0.7))
+                        Spacer()
+                        Label("PRIVATE MAP", systemImage: "lock.fill")
+                            .font(.system(size: 10, weight: .bold, design: .rounded)).tracking(1)
+                            .foregroundStyle(Palette.tealLight)
+                    }
+                    VStack(spacing: compact ? 5 : 8) {
+                        Image(systemName: hold.isRevealed ? "eye.fill" : "eye.slash.fill")
+                            .font(.system(size: compact ? 24 : 28, weight: .medium))
+                            .foregroundStyle(hold.isRevealed ? Palette.tealLight : Color.white.opacity(0.83))
+                        Text("\(game.playerName(game.currentClueGiver))だけが見てください")
+                            .font(.system(size: compact ? 18 : 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white).multilineTextAlignment(.center)
+                            .lineLimit(2).minimumScaleFactor(0.85)
+                        Text(hold.isRevealed ? "指を押したまま、盤面を確認" : "端末を自分側に向けてから長押し")
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.69))
+                    }
+                    HStack(spacing: 7) {
+                        legend(.target, count: 9)
+                        legend(.neutral, count: 13)
+                        legend(.danger, count: 3)
+                    }
+
+                    ZStack {
+                        if hold.isRevealed {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gap), count: 5), spacing: gap) {
+                                ForEach(game.words.indices, id: \.self) { index in
+                                    SecretMapCell(word: game.words[index], role: game.keys[game.currentClueGiver][index], height: tileHeight)
+                                }
+                            }
+                            .accessibilityLabel("\(game.playerName(game.currentClueGiver))の秘密マップ")
+                        } else {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(.white.opacity(0.055))
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(.white.opacity(0.17), lineWidth: 1)
+                            VStack(spacing: 11) {
+                                Image(systemName: "hand.point.up.left.fill")
+                                    .font(.system(size: 28, weight: .light))
+                                Text("長押し中だけ秘密マップを表示")
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            }
+                            .foregroundStyle(.white.opacity(0.63))
                         }
                     }
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                    .accessibilityLabel("\(game.playerName(game.currentClueGiver))の秘密マップ")
-                } else {
-                    Spacer(minLength: 0)
-                    VStack(spacing: 10) {
-                        Image(systemName: "hand.tap.fill").font(.system(size: 30, weight: .light)).foregroundStyle(.white.opacity(0.52))
-                        Text("長押し中だけマップが表示されます")
-                            .font(.system(size: 12)).foregroundStyle(.white.opacity(0.55))
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                    .frame(height: mapHeight)
 
-                Button {} label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: holding ? "eye.fill" : "hand.point.up.left.fill")
-                        Text(holding ? "秘密を確認中" : "長押しして秘密を見る")
-                    }
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Palette.navy)
-                    .frame(maxWidth: .infinity, minHeight: 54)
-                    .background(holding ? Palette.tealLight : .white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    Spacer(minLength: 0)
+                    holdControl
                 }
-                .buttonStyle(PressableButtonStyle())
-                .accessibilityLabel("長押しして秘密マップを見る。指を離すと画面を隠します")
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 0.65, maximumDistance: 35)
-                        .updating($holding) { current, state, _ in state = current }
-                        .onEnded { succeeded in if succeeded { model.closeSecret() } }
-                )
-                .padding(.bottom, 6)
+                .padding(.horizontal, 19)
+                .padding(.top, compact ? 8 : 12)
+                .padding(.bottom, 8)
+                .frame(maxWidth: 540, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 19)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            .frame(maxWidth: 540)
         }
-        .animation(.easeOut(duration: 0.16), value: holding)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                cancelledUntilRelease = false
+            } else {
+                cancelledUntilRelease = true
+                finishPress()
+            }
+        }
+        .onDisappear { revealTask?.cancel() }
+    }
+
+    private func legend(_ role: Role, count: Int) -> some View {
+        HStack(spacing: 5) {
+            Text(role.symbol).font(.system(size: 12, weight: .black, design: .rounded))
+            Text("\(role.title) \(count)").font(.system(size: 10, weight: .semibold, design: .rounded))
+        }
+        .foregroundStyle(role == .target ? Palette.tealLight : role == .danger ? Color(hex: 0xE6A09A) : Color.white.opacity(0.78))
+        .frame(maxWidth: .infinity, minHeight: 30)
+        .background(.white.opacity(0.075), in: RoundedRectangle(cornerRadius: 9))
+    }
+
+    private var holdControl: some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .fill(hold.isRevealed ? Palette.tealLight : Color.white)
+                HStack(spacing: 9) {
+                    Image(systemName: hold.isRevealed ? "eye.fill" : "hand.point.up.left.fill")
+                    Text(hold.isRevealed ? "秘密マップを表示中" : "長押しして秘密を見る")
+                }
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(Palette.navy)
+                GeometryReader { width in
+                    Capsule().fill(Palette.teal)
+                        .frame(width: hold.isPressing ? width.size.width : 0, height: 3)
+                        .animation(hold.isPressing ? .linear(duration: 0.65) : nil, value: hold.isPressing)
+                }
+                .frame(height: 3)
+                .padding(.horizontal, 15)
+                .padding(.bottom, 5)
+            }
+            .frame(height: 62)
+            .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged(updatePress)
+                    .onEnded { _ in
+                        cancelledUntilRelease = false
+                        finishPress()
+                    }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("長押しして秘密マップを見る")
+            .accessibilityValue(hold.isRevealed ? "表示中" : "非表示")
+            .accessibilityHint("押したまま見ることができます。指を離すと端末を渡す画面になります")
+            Text("指を離すとすぐに隠れます")
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.65))
+        }
+    }
+
+    private func updatePress(_ value: DragGesture.Value) {
+        guard !cancelledUntilRelease else { return }
+        if hypot(value.translation.width, value.translation.height) > 35 {
+            cancelledUntilRelease = true
+            finishPress()
+            return
+        }
+        guard !hold.isPressing else { return }
+        hold.begin()
+        let token = UUID()
+        pressToken = token
+        revealTask?.cancel()
+        revealTask = Task { @MainActor in
+            do { try await Task.sleep(for: .milliseconds(650)) }
+            catch { return }
+            guard pressToken == token, hold.isPressing else { return }
+            hold.reveal()
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        }
+    }
+
+    private func finishPress() {
+        revealTask?.cancel()
+        revealTask = nil
+        pressToken = UUID()
+        if hold.end() { model.closeSecret() }
     }
 }
 
 struct SecretMapCell: View {
     let word: Word
     let role: Role
+    let height: CGFloat
     private var tint: Color {
         switch role {
         case .target: return Palette.tealLight
@@ -118,12 +216,14 @@ struct SecretMapCell: View {
     }
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 2) {
             Text(role.symbol).font(.system(size: 14, weight: .black, design: .rounded))
-            Text(word.text).font(.system(size: 10, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7)
+            Text(word.text)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.85)
         }
         .foregroundStyle(Palette.navy)
-        .frame(maxWidth: .infinity).frame(height: 47)
+        .frame(maxWidth: .infinity).frame(height: height)
         .background(tint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(word.text)、\(role.title)")
@@ -182,8 +282,6 @@ struct PlayingView: View {
     @State private var selectedIndex: Int?
     @State private var showRules = false
     @State private var showExitPrompt = false
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
-
     private var guesser: Player { game.currentClueGiver.other }
 
     var body: some View {
@@ -192,7 +290,7 @@ struct PlayingView: View {
                 HStack(spacing: 8) {
                     Button { showExitPrompt = true } label: {
                         Image(systemName: "chevron.down").font(.system(size: 14, weight: .bold))
-                            .frame(width: 38, height: 38).background(Palette.card, in: Circle()).overlay(Circle().stroke(Palette.line, lineWidth: 1))
+                            .frame(width: 44, height: 44).background(Palette.card, in: Circle()).overlay(Circle().stroke(Palette.line, lineWidth: 1))
                     }.buttonStyle(.plain).accessibilityLabel("ゲームを閉じる")
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(game.playerName(game.currentClueGiver)) がヒント")
@@ -204,10 +302,10 @@ struct PlayingView: View {
                     Button { showRules = true } label: {
                         Image(systemName: "questionmark")
                             .font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.secondary)
-                            .frame(width: 34, height: 34).background(Palette.card, in: Circle()).overlay(Circle().stroke(Palette.line, lineWidth: 1))
+                            .frame(width: 44, height: 44).background(Palette.card, in: Circle()).overlay(Circle().stroke(Palette.line, lineWidth: 1))
                     }.buttonStyle(.plain).accessibilityLabel("遊び方")
                 }
-                .frame(height: 40)
+                .frame(height: 44)
 
                 VStack(spacing: 6) {
                     HStack {
@@ -295,24 +393,24 @@ struct PlayingView: View {
         HStack(spacing: 6) {
             Image(systemName: "quote.bubble").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.teal)
             TextField("ヒントを記録（口頭だけでもOK）", text: $clueDraft)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .submitLabel(.done)
                 .onSubmit(saveClue)
                 .accessibilityLabel("ヒントの単語")
             Button { clueCount = max(1, clueCount - 1) } label: {
-                Image(systemName: "minus").font(.system(size: 10, weight: .bold)).frame(width: 30, height: 34).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 9))
+                Image(systemName: "minus").font(.system(size: 11, weight: .bold)).frame(width: 44, height: 44).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 10))
             }.buttonStyle(.plain).accessibilityLabel("ヒント数を減らす")
             Text("\(clueCount)").font(.system(size: 13, weight: .bold, design: .rounded)).monospacedDigit().frame(minWidth: 13)
             Button { clueCount = min(9, clueCount + 1) } label: {
-                Image(systemName: "plus").font(.system(size: 10, weight: .bold)).frame(width: 30, height: 34).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 9))
+                Image(systemName: "plus").font(.system(size: 11, weight: .bold)).frame(width: 44, height: 44).background(Palette.canvas, in: RoundedRectangle(cornerRadius: 10))
             }.buttonStyle(.plain).accessibilityLabel("ヒント数を増やす")
             Button(action: saveClue) {
                 Text("記録").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 10).frame(height: 34).background(Palette.teal, in: RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal, 11).frame(height: 44).background(Palette.teal, in: RoundedRectangle(cornerRadius: 10))
             }.buttonStyle(.plain).disabled(clueDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .opacity(clueDraft.isEmpty ? 0.45 : 1)
         }
-        .padding(.horizontal, 9).frame(height: 48)
+        .padding(.horizontal, 8).frame(height: 54)
         .background(Palette.card, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 13).stroke(Palette.line, lineWidth: 1))
         .overlay(alignment: .topTrailing) {
@@ -355,12 +453,12 @@ struct PlayingView: View {
             VStack(spacing: 2) {
                 if let cellRole { Text(cellRole.symbol).font(.system(size: 11, weight: .black, design: .rounded)) }
                 Text(word.text)
-                    .font(.system(size: min(14, max(11, cellHeight * 0.23)), weight: .semibold, design: .rounded))
-                    .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.72).fixedSize(horizontal: false, vertical: true)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.9)
                     .foregroundStyle(isFound ? Color(hex: 0x145E59) : isNeutralForTurn ? Color(hex: 0x5B6870) : Palette.ink)
             }
-            .frame(maxWidth: .infinity).frame(height: cellHeight)
             .padding(.horizontal, 2)
+            .frame(maxWidth: .infinity).frame(height: cellHeight)
             .background(isFound ? Palette.tealLight : isNeutralForTurn ? Color(hex: 0xE9EBEA) : Palette.card, in: RoundedRectangle(cornerRadius: cellHeight < 54 ? 9 : 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: cellHeight < 54 ? 9 : 12).stroke(isFound ? Palette.teal.opacity(0.24) : Palette.line.opacity(isNeutralForTurn ? 0.75 : 1), lineWidth: 1))
         }

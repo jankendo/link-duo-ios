@@ -214,6 +214,30 @@ enum GuessOutcome: Equatable {
     case turnLimit
 }
 
+/// Keeps recognition and finger release separate so a successful hold stays visible.
+struct SecretHoldState {
+    private(set) var isPressing = false
+    private(set) var isRevealed = false
+
+    mutating func begin() {
+        guard !isPressing else { return }
+        isPressing = true
+    }
+
+    mutating func reveal() {
+        guard isPressing else { return }
+        isRevealed = true
+    }
+
+    /// Returns true only when the map was visible before the finger lifted.
+    @discardableResult mutating func end() -> Bool {
+        let shouldPass = isRevealed
+        isPressing = false
+        isRevealed = false
+        return shouldPass
+    }
+}
+
 enum GameEngine {
     static let boardCount = 25
     static let targetsPerPlayer = 9

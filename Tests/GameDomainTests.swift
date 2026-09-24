@@ -48,6 +48,25 @@ final class GameDomainTests: XCTestCase {
         XCTAssertEqual(GameEngine.acknowledgePass(game).phase, .secretView)
     }
 
+    func testSecretHoldStaysVisibleUntilReleaseAndShortTapDoesNotPass() {
+        var hold = SecretHoldState()
+        hold.begin()
+        XCTAssertFalse(hold.isRevealed)
+        XCTAssertFalse(hold.end())
+
+        hold.reveal()
+        XCTAssertFalse(hold.isRevealed)
+
+        hold.begin()
+        hold.reveal()
+        XCTAssertTrue(hold.isRevealed)
+        XCTAssertTrue(hold.isPressing)
+        XCTAssertTrue(hold.end())
+        XCTAssertFalse(hold.isRevealed)
+        XCTAssertFalse(hold.isPressing)
+        XCTAssertFalse(hold.end())
+    }
+
     func testClueRequiresAWordAndNumberAndStoresItForCurrentGiver() throws {
         var game = try GameEngine.makeGame(settings: GameSettings(), allWords: words)
         game.phase = .playing
