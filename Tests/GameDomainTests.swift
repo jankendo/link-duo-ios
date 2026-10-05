@@ -209,6 +209,15 @@ final class GameDomainTests: XCTestCase {
         XCTAssertEqual(first.schemaVersion, 2)
     }
 
+    func testCustomPackWithTwentyFiveSimilarWordsStillStarts() throws {
+        var settings = GameSettings()
+        settings.pack = .custom
+        settings.customWords = (0..<25).map { Word(id: "custom-\($0)", text: "温泉\($0)", category: "カスタム") }
+        let game = try GameEngine.makeGame(settings: settings, allWords: WordRepository.all, seed: 42)
+        XCTAssertEqual(Set(game.words.map(\.text)).count, 25)
+        XCTAssertEqual(game.phase, .secretView)
+    }
+
     @MainActor func testV1SaveMigratesAndNeverRestoresSecretScreen() throws {
         let suite = "link-duo-tests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

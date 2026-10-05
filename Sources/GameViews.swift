@@ -40,6 +40,7 @@ struct SecretView: View {
     @ObservedObject var model: AppModel
     let game: GameState
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @State private var hold = SecretHoldState()
     @State private var revealTask: Task<Void, Never>?
     @State private var pressToken = UUID()
@@ -112,7 +113,22 @@ struct SecretView: View {
                     }
 
                     Spacer(minLength: 0)
-                    holdControl
+                    if voiceOverEnabled {
+                        VStack(spacing: 7) {
+                            Text("読み上げ内容が相手に聞こえないよう、イヤホンを使用してください")
+                                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.8))
+                            Button(hold.isRevealed ? "秘密を隠して端末を渡す" : "秘密を見る") {
+                                if hold.isRevealed { finishPress() }
+                                else { hold.begin(); hold.reveal() }
+                            }
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Palette.navy)
+                            .frame(maxWidth: .infinity, minHeight: 62)
+                            .background(Color.white, in: RoundedRectangle(cornerRadius: 17))
+                        }
+                    } else {
+                        holdControl
+                    }
                 }
                 .padding(.horizontal, 19)
                 .padding(.top, compact ? 8 : 12)
@@ -220,6 +236,7 @@ struct SecretMapCell: View {
     let word: Word
     let role: Role
     let height: CGFloat
+    @ScaledMetric(relativeTo: .body) private var wordSize: CGFloat = 11
     private var tint: Color {
         switch role {
         case .target: return Palette.tealLight
@@ -232,7 +249,7 @@ struct SecretMapCell: View {
         VStack(spacing: 2) {
             Text(role.symbol).font(.system(size: 14, weight: .black, design: .rounded))
             Text(word.text)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.system(size: min(wordSize, 16), weight: .semibold, design: .rounded))
                 .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.85)
         }
         .foregroundStyle(Palette.navy)
@@ -304,6 +321,7 @@ struct PlayingView: View {
     @State private var selectedIndex: Int?
     @State private var showRules = false
     @State private var showExitPrompt = false
+    @ScaledMetric(relativeTo: .body) private var cardWordSize: CGFloat = 14
     private var guesser: Player { game.currentClueGiver.other }
 
     var body: some View {
@@ -479,8 +497,8 @@ struct PlayingView: View {
                         .foregroundStyle(isFound ? Palette.teal : Palette.secondary)
                 }
                 Text(word.text)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.9)
+                    .font(.system(size: min(cardWordSize, 20), weight: .semibold, design: .rounded))
+                    .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.72)
                     .foregroundStyle(isFound ? Color(hex: 0x145E59) : isNeutralForTurn ? Color(hex: 0x5B6870) : Palette.ink)
             }
             .padding(.horizontal, 2)

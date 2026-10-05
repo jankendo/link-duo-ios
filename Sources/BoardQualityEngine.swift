@@ -131,6 +131,7 @@ enum BoardQualityEngine {
         }
         return !selected.contains { other in
             if entry.normalized == other.normalized { return true }
+            if !strict { return false }
             if let cluster = entry.cluster, cluster == other.cluster { return true }
             return min(entry.normalized.count, other.normalized.count) >= 2 &&
                 (entry.normalized.contains(other.normalized) || other.normalized.contains(entry.normalized))
