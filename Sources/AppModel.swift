@@ -17,12 +17,30 @@ final class AppModel: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.settings = Self.decode(GameSettings.self, key: "link-duo-ios.settings.v1", defaults: defaults) ?? GameSettings()
-        self.history = Self.decode([MatchRecord].self, key: "link-duo-ios.history.v1", defaults: defaults) ?? []
+        var restoredSettings = Self.decode(GameSettings.self, key: "link-duo-ios.settings.v1", defaults: defaults) ?? GameSettings()
+        restoredSettings.schemaVersion = 2
+        restoredSettings.customTurns = min(15, max(5, restoredSettings.customTurns))
+        restoredSettings.customWords = Array(restoredSettings.customWords.filter {
+            (1...10).contains($0.text.count) && !$0.text.contains(where: \.isNewline)
+        }.prefix(300))
+        self.settings = restoredSettings
+        self.history = Array((Self.decode([MatchRecord].self, key: "link-duo-ios.history.v1", defaults: defaults) ?? [])
+            .filter { $0.turnsUsed >= 0 && $0.playSeconds >= 0 && (0...15).contains($0.targetsFound) }
+            .prefix(20))
         let restored = Self.decode(GameState.self, key: "link-duo-ios.active-game.v1", defaults: defaults)
-        self.game = restored.flatMap { GameEngine.validate($0) && $0.phase.isActive ? $0 : nil }
+        self.game = restored.flatMap { game -> GameState? in
+            guard GameEngine.validate(game), game.phase.isActive else { return nil }
+            var migrated = game
+            migrated.schemaVersion = 2
+            // A cold launch cannot resume a secret reveal or retain the old player's screen.
+            if migrated.phase == .secretView { migrated.phase = .passDevice }
+            return migrated
+        }
         self.tutorialSeen = defaults.bool(forKey: "link-duo-ios.tutorial-seen.v1")
-        if self.game == nil { defaults.removeObject(forKey: "link-duo-ios.active-game.v1") }
+        Self.encode(self.settings, key: "link-duo-ios.settings.v1", defaults: defaults)
+        Self.encode(self.history, key: "link-duo-ios.history.v1", defaults: defaults)
+        if let game = self.game { Self.encode(game, key: "link-duo-ios.active-game.v1", defaults: defaults) }
+        else { defaults.removeObject(forKey: "link-duo-ios.active-game.v1") }
     }
 
     var hasResumableGame: Bool { game?.phase.isActive == true }
@@ -33,6 +51,7 @@ final class AppModel: ObservableObject {
         var next = settings
         update(&next)
         next.customTurns = min(15, max(5, next.customTurns))
+        next.schemaVersion = 2
         settings = next
         Self.encode(next, key: settingsKey, defaults: defaults)
     }
@@ -64,6 +83,11 @@ final class AppModel: ObservableObject {
 
     func closeSecret() {
         guard let game else { return }
+        commit(GameEngine.closeSecret(game))
+    }
+
+    func protectSecretOnInterruption() {
+        guard let game, game.phase == .secretView else { return }
         commit(GameEngine.closeSecret(game))
     }
 
@@ -111,8 +135,9 @@ final class AppModel: ObservableObject {
 
     func addCustomWord(_ input: String) -> Bool {
         let clean = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (2...14).contains(clean.count) else {
-            errorMessage = "単語は2〜14文字で入力してください。"
+        guard (1...10).contains(clean.count),
+              !clean.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+            errorMessage = "単語は1〜10文字で入力してください。改行や制御文字は使えません。"
             return false
         }
         let key = Self.normalized(clean)
@@ -130,6 +155,22 @@ final class AppModel: ObservableObject {
 
     func removeCustomWord(id: String) {
         updateSettings { $0.customWords.removeAll { $0.id == id } }
+    }
+
+    func importCustomWords(_ text: String) -> Int {
+        let lines = text.components(separatedBy: .newlines)
+        var existing = Set(settings.customWords.map { Self.normalized($0.text) })
+        var incoming: [Word] = []
+        for line in lines {
+            let clean = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard (1...10).contains(clean.count),
+                  !clean.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+                  existing.insert(Self.normalized(clean)).inserted else { continue }
+            if settings.customWords.count + incoming.count >= 300 { break }
+            incoming.append(Word(id: "custom-\(UUID().uuidString)", text: clean, category: "カスタム"))
+        }
+        if !incoming.isEmpty { updateSettings { $0.customWords.append(contentsOf: incoming) } }
+        return incoming.count
     }
 
     func clearHistory() {
@@ -160,7 +201,7 @@ final class AppModel: ObservableObject {
             dangerSelected: next.lastEvent == .danger
         )
         history.insert(record, at: 0)
-        history = Array(history.prefix(100))
+        history = Array(history.prefix(20))
         Self.encode(history, key: historyKey, defaults: defaults)
     }
 

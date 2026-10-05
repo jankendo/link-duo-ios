@@ -122,7 +122,12 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            privacyCover = phase != .active
+            if phase != .active {
+                privacyCover = true
+                model.protectSecretOnInterruption()
+            } else {
+                privacyCover = false
+            }
         }
         .onAppear {
             guard !didRouteInitialTutorial else { return }
@@ -234,11 +239,12 @@ struct SecondaryAction: View {
 }
 
 struct PressableButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .scaleEffect(reduceMotion ? 1 : configuration.isPressed ? 0.985 : 1)
             .opacity(configuration.isPressed ? 0.88 : 1)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 

@@ -127,6 +127,7 @@ struct KeyMaps: Codable, Equatable {
 }
 
 struct GameSettings: Codable {
+    var schemaVersion: Int? = 2
     var playerA = "Player A"
     var playerB = "Player B"
     var difficulty: Difficulty = .normal
@@ -143,6 +144,8 @@ struct GameSettings: Codable {
 }
 
 struct GameState: Codable, Identifiable {
+    var schemaVersion: Int? = 2
+    var seed: UInt64? = nil
     var id: String
     let words: [Word]
     let keys: KeyMaps
@@ -168,6 +171,7 @@ struct GameState: Codable, Identifiable {
 
     func playerName(_ player: Player) -> String { player == .a ? playerAName : playerBName }
     func neutralIndices(for player: Player) -> [Int] { player == .a ? neutralByA : neutralByB }
+    var seedCode: String? { seed.map { String(format: "%016llX", $0) } }
 }
 
 struct MatchRecord: Codable, Identifiable {
@@ -295,7 +299,9 @@ enum GameEngine {
     static func validate(_ state: GameState) -> Bool {
         guard state.words.count == boardCount,
               Set(state.words.map(\.id)).count == boardCount,
+              Set(state.words.map { $0.text.precomposedStringWithCompatibilityMapping.lowercased() }).count == boardCount,
               validate(state.keys),
+              (state.schemaVersion ?? 1) <= 2,
               (5...15).contains(state.turnLimit),
               (0...state.turnLimit).contains(state.turnRemaining),
               state.turnsUsed >= 0,
@@ -311,7 +317,7 @@ enum GameEngine {
         return Set(state.foundIndices).isSubset(of: targetUnion)
     }
 
-    static func makeGame(settings: GameSettings, allWords: [Word], now: Date = Date()) throws -> GameState {
+    static func makeGame(settings: GameSettings, allWords: [Word], seed: UInt64? = nil, now: Date = Date()) throws -> GameState {
         let pool: [Word]
         switch settings.pack {
         case .standard:
@@ -325,11 +331,14 @@ enum GameEngine {
         let uniqueWords = deduplicated(pool)
         guard uniqueWords.count >= boardCount else { throw GameError.insufficientWords }
         if settings.difficulty == .custom && !(5...15).contains(settings.customTurns) { throw GameError.invalidTurns }
-        var rng = SystemRandomNumberGenerator()
-        let words = selectWords(uniqueWords, using: &rng)
+        let gameSeed = seed ?? UInt64.random(in: UInt64.min...UInt64.max)
+        var rng = GameRandom(seed: gameSeed)
+        let words = BoardQualityEngine.select(from: uniqueWords, difficulty: settings.difficulty, pack: settings.pack, using: &rng)
         let keys = generateKeyMaps(using: &rng)
         let limit = settings.difficulty.turnLimit(custom: settings.customTurns)
         let state = GameState(
+            schemaVersion: 2,
+            seed: gameSeed,
             id: UUID().uuidString,
             words: words,
             keys: keys,
@@ -470,31 +479,18 @@ enum GameEngine {
         return folded.filter { !$0.isWhitespace && $0 != "・" && $0 != "‐" && $0 != "-" }
     }
 
-    private static func selectWords<R: RandomNumberGenerator>(_ pool: [Word], using rng: inout R) -> [Word] {
-        var categories = Dictionary(grouping: pool, by: \.category)
-        var order = Array(categories.keys).shuffled(using: &rng)
-        for key in order { categories[key]?.shuffle(using: &rng) }
-        var selected: [Word] = []
-        var counts: [String: Int] = [:]
-        while selected.count < boardCount {
-            var moved = false
-            for category in order where selected.count < boardCount {
-                guard let nextCount = counts[category], nextCount >= 3 else {
-                    guard var bucket = categories[category], !bucket.isEmpty else { continue }
-                    selected.append(bucket.removeLast())
-                    categories[category] = bucket
-                    counts[category, default: 0] += 1
-                    moved = true
-                    continue
-                }
-            }
-            if !moved { break }
-        }
-        if selected.count < boardCount {
-            let used = Set(selected.map(\.id))
-            selected.append(contentsOf: pool.filter { !used.contains($0.id) }.shuffled(using: &rng).prefix(boardCount - selected.count))
-        }
-        return selected.shuffled(using: &rng)
+}
+
+/// A stored seed reproduces word and key positions for the same word list and algorithm version.
+struct GameRandom: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+        value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+        return value ^ (value >> 31)
     }
 }
 

@@ -10,6 +10,8 @@ SwiftUIで作った2人協力型のワード推理ゲームです。iPhone 1台�
 - ルール説明、初回チュートリアル、名前・難易度設定、途中復帰、ゲーム履歴、成績
 - 秘密マップは650ms以上の長押し中のみ表示。指を離すと受け渡し画面に切り替え
 - iOS 17以上。iPhoneは縦画面、iPadは全向きに対応
+- 盤面品質選定、難易度別候補選択、再現用Seed、v1保存データ移行、VoiceOver用カード読み上げ
+- [プライバシーポリシー](PRIVACY.md)
 
 ## Xcodeで開く
 
@@ -17,7 +19,7 @@ SwiftUIで作った2人協力型のワード推理ゲームです。iPhone 1台�
 
 ## GitHub Actions IPA
 
-`iOS Release IPA` workflowはiOS Simulator上でゲームロジックテストを実行した後、`macos-15` runnerで次の設定を使ってiPhone向けRelease Archiveを作成します。
+`iOS Release IPA` workflowはiOS Simulator上で10万盤面を含むゲームロジックテストを実行した後、`macos-26` runnerで次の設定を使ってiPhone向けRelease Archiveを作成します。
 
 ```sh
 xcodebuild archive -project LINKDUO.xcodeproj -scheme LINKDUO \
@@ -28,3 +30,5 @@ xcodebuild archive -project LINKDUO.xcodeproj -scheme LINKDUO \
 Archive内のアプリを`Payload/LINKDUO.app`としてIPAにパッケージし、ZIP構造を検証してから、`LINK-DUO-iOS-IPA`という名前で30日間Actions Artifactとして保存します。GitHub Actionsの完了したworkflow runからartifactをダウンロードできます。
 
 このIPAは署名されていないビルドです。Xcodeプロジェクトとソースを検証するための成果物で、実機へ直接インストールしたりApp Storeへ提出したりするにはApple署名が必要です。
+
+App Store Connectへの提出時には、正式署名に加え、公開プライバシーポリシーURLとしてこのリポジトリの`PRIVACY.md`を登録し、App Privacyの回答を実際の配布構成に合わせて設定してください。今回のCIは署名と提出を行いません。

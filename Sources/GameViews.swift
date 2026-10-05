@@ -83,7 +83,7 @@ struct SecretView: View {
                         if hold.isRevealed {
                             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gap), count: 5), spacing: gap) {
                                 ForEach(game.words.indices, id: \.self) { index in
-                                    SecretMapCell(word: game.words[index], role: game.keys[game.currentClueGiver][index], height: tileHeight)
+                                    SecretMapCell(index: index, word: game.words[index], role: game.keys[game.currentClueGiver][index], height: tileHeight)
                                 }
                             }
                             .accessibilityLabel("\(game.playerName(game.currentClueGiver))の秘密マップ")
@@ -127,9 +127,13 @@ struct SecretView: View {
             } else {
                 cancelledUntilRelease = true
                 finishPress()
+                model.protectSecretOnInterruption()
             }
         }
-        .onDisappear { revealTask?.cancel() }
+        .onDisappear {
+            revealTask?.cancel()
+            _ = hold.end()
+        }
     }
 
     private func legend(_ role: Role, count: Int) -> some View {
@@ -212,6 +216,7 @@ struct SecretView: View {
 }
 
 struct SecretMapCell: View {
+    let index: Int
     let word: Word
     let role: Role
     let height: CGFloat
@@ -234,7 +239,7 @@ struct SecretMapCell: View {
         .frame(maxWidth: .infinity).frame(height: height)
         .background(tint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(word.text)、\(role.title)")
+        .accessibilityLabel("カード\(index + 1)、\(word.text)、\(role.title)")
     }
 }
 
@@ -486,7 +491,7 @@ struct PlayingView: View {
         }
         .buttonStyle(CardTapStyle())
         .disabled(isUnavailable)
-        .accessibilityLabel(word.text + (isFound ? "、仲間、発見済み" : isNeutralForTurn ? "、この地図では一般" : ""))
+        .accessibilityLabel("カード\(index + 1)、\(word.text)、" + (isFound ? "仲間、発見済み" : isNeutralForTurn ? "一般、判定済み" : "未選択"))
         .accessibilityHint(isUnavailable ? "すでに判定済みです" : "ダブルタップして選択")
     }
 
@@ -496,10 +501,11 @@ struct PlayingView: View {
 }
 
 struct CardTapStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+            .scaleEffect(reduceMotion ? 1 : configuration.isPressed ? 0.96 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }
 
@@ -540,6 +546,8 @@ struct ResultView: View {
     let game: GameState
     let onHome: () -> Void
     @State private var showMap = false
+    @State private var shareImage: UIImage?
+    @State private var showingShare = false
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
 
     private var didWin: Bool { game.phase == .win }
@@ -583,6 +591,19 @@ struct ResultView: View {
                     }.padding(13).background(Palette.card, in: RoundedRectangle(cornerRadius: 13))
                 }
 
+                if let seed = game.seedCode {
+                    HStack(spacing: 8) {
+                        Image(systemName: "number.square").foregroundStyle(Palette.teal)
+                        Text("GAME SEED  \(seed)")
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        Spacer()
+                        Button("コピー") { UIPasteboard.general.string = seed }
+                            .font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.teal)
+                    }
+                    .padding(13).background(Palette.card, in: RoundedRectangle(cornerRadius: 13))
+                    .accessibilityElement(children: .combine)
+                }
+
                 Button { withAnimation(.easeInOut(duration: 0.2)) { showMap.toggle() } } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
@@ -610,6 +631,7 @@ struct ResultView: View {
                 }
 
                 VStack(spacing: 9) {
+                    SecondaryAction(title: "結果を画像で共有", symbol: "square.and.arrow.up") { shareResult() }
                     PrimaryAction(title: "もう一度", symbol: "arrow.clockwise") { _ = model.startRematch() }
                     SecondaryAction(title: "ホームへ", symbol: "house.fill", action: onHome)
                 }
@@ -620,6 +642,41 @@ struct ResultView: View {
             .frame(maxWidth: 520).frame(maxWidth: .infinity)
         }
         .background(Palette.canvas)
+        .sheet(isPresented: $showingShare) {
+            if let shareImage { ResultShareSheet(image: shareImage) }
+        }
+    }
+
+    private var shareCard: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("LINK DUO").font(.system(size: 18, weight: .black, design: .rounded)).tracking(2)
+            Text(didWin ? "MISSION COMPLETE" : "MISSION FAILED")
+                .font(.system(size: 30, weight: .black, design: .rounded))
+            Rectangle().fill(Palette.teal).frame(height: 3)
+            HStack {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("仲間 \(game.foundIndices.count) / 15")
+                    Text("\(game.turnsUsed)ターン · \(Self.duration(game.elapsedSeconds ?? 0))")
+                    Text("\(game.difficulty.title) · 誤答 \(game.wrongGuesses)回")
+                }
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                Spacer()
+            }
+            Text("ふたりの発想をつなぐ協力ワードゲーム")
+                .font(.system(size: 12)).foregroundStyle(Palette.secondary)
+        }
+        .foregroundStyle(Palette.navy)
+        .padding(28)
+        .frame(width: 360, alignment: .leading)
+        .background(Palette.canvas)
+    }
+
+    private func shareResult() {
+        let renderer = ImageRenderer(content: shareCard)
+        renderer.scale = 2
+        guard let image = renderer.uiImage else { return }
+        shareImage = image
+        showingShare = true
     }
 
     private func resultLegend(_ role: Role, name: String) -> some View {
@@ -635,6 +692,14 @@ struct ResultView: View {
         let remainder = max(0, seconds) % 60
         return minutes == 0 ? "\(remainder)秒" : "\(minutes):\(String(format: "%02d", remainder))"
     }
+}
+
+private struct ResultShareSheet: UIViewControllerRepresentable {
+    let image: UIImage
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [image], applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 struct ResultMetric: View {
@@ -672,6 +737,8 @@ struct ResultMapCell: View {
         .frame(maxWidth: .infinity).frame(height: 55)
         .padding(.horizontal, 1)
         .background(found ? Palette.tealLight.opacity(0.65) : Palette.canvas, in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(word.text)、Aは\(roleA.title)、Bは\(roleB.title)、\(found ? "発見済み" : "未発見")")
     }
 
     private func color(_ role: Role) -> Color {

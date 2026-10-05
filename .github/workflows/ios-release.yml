@@ -16,7 +16,7 @@ jobs:
   build:
     name: Test and archive unsigned iOS app
     runs-on: macos-26
-    timeout-minutes: 35
+    timeout-minutes: 55
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -58,6 +58,9 @@ jobs:
           APP_PATH="build/LINKDUO.xcarchive/Products/Applications/LINKDUO.app"
           test -d "$APP_PATH"
           test -f "$APP_PATH/Info.plist"
+          test -f "$APP_PATH/PrivacyInfo.xcprivacy"
+          plutil -lint "$APP_PATH/PrivacyInfo.xcprivacy"
+          /usr/libexec/PlistBuddy -c 'Print NSPrivacyAccessedAPITypes:0:NSPrivacyAccessedAPITypeReasons:0' "$APP_PATH/PrivacyInfo.xcprivacy" | grep -Fx 'CA92.1'
           mkdir -p build/Payload
           ditto "$APP_PATH" build/Payload/LINKDUO.app
           cd build

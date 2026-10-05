@@ -175,6 +175,113 @@ final class GameDomainTests: XCTestCase {
         XCTAssertEqual(stats.fastestSeconds, 80)
     }
 
+    func testAllBuiltInWordsHaveStableIdentityAndReadableLength() {
+        let source = WordRepository.all
+        XCTAssertEqual(source.count, 1_616)
+        XCTAssertEqual(Set(source.map(\.id)).count, source.count)
+        XCTAssertEqual(Set(source.map { $0.text.precomposedStringWithCompatibilityMapping.lowercased() }).count, source.count)
+        XCTAssertTrue(source.allSatisfy { (1...10).contains($0.text.count) && !$0.category.isEmpty })
+    }
+
+    func testOneHundredThousandBoardsSatisfyQualityAndKeyInvariants() {
+        let prepared = BoardQualityEngine.prepare(WordRepository.all)
+        XCTAssertGreaterThanOrEqual(prepared.all.count, 600)
+        var random = GameRandom(seed: 0xA17D_2026_1005)
+        for iteration in 0..<100_000 {
+            let difficulty = [Difficulty.easy, .normal, .hard, .expert][iteration % 4]
+            let board = BoardQualityEngine.select(from: prepared, difficulty: difficulty,
+                                                  pack: .mixed, using: &random)
+            let keys = GameEngine.generateKeyMaps(using: &random)
+            if !BoardQualityEngine.isBalanced(board) || !GameEngine.validate(keys) ||
+                Set(board.map(\.id)).count != 25 || Set(board.map(\.text)).count != 25 {
+                XCTFail("Invalid board or map at iteration \(iteration)")
+                return
+            }
+        }
+    }
+
+    func testSeedReproducesBoardAndKeyMaps() throws {
+        let first = try GameEngine.makeGame(settings: GameSettings(), allWords: WordRepository.all, seed: 0x8D7F31A2)
+        let second = try GameEngine.makeGame(settings: GameSettings(), allWords: WordRepository.all, seed: 0x8D7F31A2)
+        XCTAssertEqual(first.words, second.words)
+        XCTAssertEqual(first.keys, second.keys)
+        XCTAssertEqual(first.seedCode, "000000008D7F31A2")
+        XCTAssertEqual(first.schemaVersion, 2)
+    }
+
+    @MainActor func testV1SaveMigratesAndNeverRestoresSecretScreen() throws {
+        let suite = "link-duo-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let old = try GameEngine.makeGame(settings: GameSettings(), allWords: words)
+        var dictionary = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(old)) as? [String: Any])
+        dictionary.removeValue(forKey: "schemaVersion")
+        dictionary.removeValue(forKey: "seed")
+        defaults.set(try JSONSerialization.data(withJSONObject: dictionary), forKey: "link-duo-ios.active-game.v1")
+        var settingsDictionary = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(GameSettings())) as? [String: Any])
+        settingsDictionary.removeValue(forKey: "schemaVersion")
+        defaults.set(try JSONSerialization.data(withJSONObject: settingsDictionary), forKey: "link-duo-ios.settings.v1")
+        let model = AppModel(defaults: defaults)
+        XCTAssertEqual(model.settings.schemaVersion, 2)
+        XCTAssertEqual(model.game?.schemaVersion, 2)
+        XCTAssertEqual(model.game?.phase, .passDevice)
+        XCTAssertEqual(model.game?.words, old.words)
+        XCTAssertEqual(model.game?.keys, old.keys)
+    }
+
+    @MainActor func testInterruptHidesSecretsAndCorruptDataIsDiscarded() throws {
+        let suite = "link-duo-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(Data("{invalid".utf8), forKey: "link-duo-ios.settings.v1")
+        defaults.set(Data("{invalid".utf8), forKey: "link-duo-ios.history.v1")
+        defaults.set(Data("{invalid".utf8), forKey: "link-duo-ios.active-game.v1")
+        let model = AppModel(defaults: defaults)
+        XCTAssertNil(model.game)
+        XCTAssertTrue(model.history.isEmpty)
+        XCTAssertEqual(model.settings.playerA, "Player A")
+        XCTAssertTrue(model.startNewGame())
+        model.protectSecretOnInterruption()
+        XCTAssertEqual(model.game?.phase, .passDevice)
+        XCTAssertEqual(AppModel(defaults: defaults).game?.phase, .passDevice)
+    }
+
+    @MainActor func testOneCharacterCustomWordAndHistoryCap() throws {
+        let suite = "link-duo-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = AppModel(defaults: defaults)
+        XCTAssertTrue(model.addCustomWord("犬"))
+        XCTAssertFalse(model.addCustomWord("あいうえおかきくけこさ"))
+        XCTAssertFalse(model.addCustomWord("猫\n犬"))
+        XCTAssertEqual(model.settings.customWords.map(\.text), ["犬"])
+        XCTAssertEqual(model.importCustomWords("猫\n猫\n温泉\n長すぎる単語のテストです一二三\n"), 2)
+        XCTAssertEqual(model.settings.customWords.map(\.text), ["犬", "猫", "温泉"])
+        let records = (0..<30).map { record("\($0)", won: false, turns: 1, seconds: 4, daysAgo: $0, now: Date()) }
+        defaults.set(try JSONEncoder().encode(records), forKey: "link-duo-ios.history.v1")
+        XCTAssertEqual(AppModel(defaults: defaults).history.count, 20)
+    }
+
+    @MainActor func testWinRemovesActiveSaveAndRematchStartsFresh() throws {
+        let suite = "link-duo-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var game = try GameEngine.makeGame(settings: GameSettings(), allWords: words)
+        game.phase = .playing
+        let union = Set((0..<25).filter { game.keys.a[$0] == .target || game.keys.b[$0] == .target })
+        let last = try XCTUnwrap(union.first(where: { game.keys.a[$0] == .target }))
+        game.foundIndices = Array(union.subtracting([last]))
+        defaults.set(try JSONEncoder().encode(game), forKey: "link-duo-ios.active-game.v1")
+        let model = AppModel(defaults: defaults)
+        XCTAssertEqual(model.resolveGuess(index: last), .win)
+        XCTAssertNil(defaults.data(forKey: "link-duo-ios.active-game.v1"))
+        XCTAssertEqual(model.history.count, 1)
+        XCTAssertTrue(model.history[0].won)
+        XCTAssertTrue(model.startRematch())
+        XCTAssertEqual(model.game?.phase, .secretView)
+        XCTAssertNotEqual(model.game?.id, game.id)
+    }
+
     private func record(_ id: String, won: Bool, turns: Int, seconds: Int, daysAgo: Int, now: Date) -> MatchRecord {
         MatchRecord(id: id, date: now.addingTimeInterval(TimeInterval(-daysAgo * 86_400)), won: won, difficulty: .normal, turnsUsed: turns, playSeconds: seconds, targetsFound: won ? 15 : 6, dangerSelected: false)
     }

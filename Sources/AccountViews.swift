@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct StatsView: View {
     @ObservedObject var model: AppModel
@@ -157,7 +158,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("ABOUT").font(.system(size: 10, weight: .bold, design: .rounded)).tracking(1.4).foregroundStyle(Palette.teal)
                         VStack(spacing: 0) {
-                            SettingInfoRow(label: "バージョン", value: "1.0.0")
+                            SettingInfoRow(label: "バージョン", value: "2.0.0")
                             Divider().overlay(Palette.line).padding(.leading, 14)
                             SettingInfoRow(label: "プレイ方式", value: "1台で2人・オフライン")
                             Divider().overlay(Palette.line).padding(.leading, 14)
@@ -210,6 +211,8 @@ struct CustomWordsView: View {
     @ObservedObject var model: AppModel
     let onBack: () -> Void
     @State private var draft = ""
+    @State private var importing = false
+    @State private var importSummary: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -224,6 +227,22 @@ struct CustomWordsView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                 Text("地名や思い出の言葉も登録できます。25語以上でゲーム開始できます。")
                     .font(.system(size: 12)).lineSpacing(4).foregroundStyle(Palette.secondary)
+                HStack(spacing: 12) {
+                    Button("テキストを読み込む") { importing = true }
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(minHeight: 44)
+                    Spacer()
+                    ShareLink(item: model.settings.customWords.map(\.text).joined(separator: "\n")) {
+                        Label("単語を書き出す", systemImage: "square.and.arrow.up")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(minHeight: 44)
+                    }
+                    .disabled(model.settings.customWords.isEmpty)
+                }
+                .tint(Palette.teal)
+                if let importSummary {
+                    Text(importSummary).font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                }
                 HStack(spacing: 8) {
                     TextField("単語を追加", text: $draft)
                         .font(.system(size: 14)).padding(.horizontal, 13).frame(height: 48)
@@ -264,7 +283,17 @@ struct CustomWordsView: View {
             .frame(maxWidth: 560, maxHeight: .infinity).frame(maxWidth: .infinity)
         }
         .background(Palette.canvas)
-    }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.plainText]) { result in
+            do {
+                let url = try result.get()
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                let input = try String(contentsOf: url, encoding: .utf8)
+                importSummary = "\(model.importCustomWords(input))語を追加しました。重複・長さ超過は除外されます。"
+            } catch {
+                importSummary = "テキストを読み込めませんでした。UTF-8形式を確認してください。"
+            }
+        }
 
     private func addWord() {
         guard model.addCustomWord(draft) else { return }
