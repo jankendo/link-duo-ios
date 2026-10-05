@@ -294,6 +294,7 @@ struct CustomWordsView: View {
                 importSummary = "テキストを読み込めませんでした。UTF-8形式を確認してください。"
             }
         }
+    }
 
     private func addWord() {
         guard model.addCustomWord(draft) else { return }

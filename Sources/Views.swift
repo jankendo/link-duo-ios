@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum AppScreen: Equatable {
     case home, setup, game, rules, stats, settings, words, tutorial
@@ -128,6 +129,10 @@ struct ContentView: View {
             } else {
                 privacyCover = false
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            privacyCover = true
+            model.protectSecretOnInterruption()
         }
         .onAppear {
             guard !didRouteInitialTutorial else { return }
