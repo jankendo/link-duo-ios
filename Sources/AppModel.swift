@@ -30,7 +30,8 @@ final class AppModel: ObservableObject {
             .filter { $0.turnsUsed >= 0 && $0.playSeconds >= 0 && (0...15).contains($0.targetsFound) }
         self.history = Array(validHistory.prefix(20))
         let savedStats = Self.decode(CareerStats.self, key: "link-duo-ios.stats.v2", defaults: defaults)
-        self.career = savedStats.flatMap { $0.isValid ? $0 : nil } ?? CareerStats(records: validHistory)
+        self.career = savedStats.flatMap { $0.isValid && $0.games >= validHistory.count ? $0 : nil }
+            ?? CareerStats(records: validHistory)
         let restored = Self.decode(GameState.self, key: "link-duo-ios.active-game.v1", defaults: defaults)
         self.game = restored.flatMap { game -> GameState? in
             guard GameEngine.validate(game), game.phase.isActive else { return nil }
