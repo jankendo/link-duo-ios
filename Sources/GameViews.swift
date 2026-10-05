@@ -87,6 +87,7 @@ struct SecretView: View {
                                     SecretMapCell(index: index, word: game.words[index], role: game.keys[game.currentClueGiver][index], height: tileHeight)
                                 }
                             }
+                            .accessibilityElement(children: .contain)
                             .accessibilityLabel("\(game.playerName(game.currentClueGiver))の秘密マップ")
                         } else {
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -619,7 +620,6 @@ struct ResultView: View {
                             .font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.teal)
                     }
                     .padding(13).background(Palette.card, in: RoundedRectangle(cornerRadius: 13))
-                    .accessibilityElement(children: .combine)
                 }
 
                 Button { withAnimation(.easeInOut(duration: 0.2)) { showMap.toggle() } } label: {

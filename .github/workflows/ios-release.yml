@@ -35,7 +35,8 @@ jobs:
             -scheme LINKDUO \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath build/DerivedData \
-            -parallel-testing-enabled NO
+            -parallel-testing-enabled NO \
+            SWIFT_OPTIMIZATION_LEVEL=-O
 
       - name: Archive iphoneos Release without signing
         run: >-
@@ -58,6 +59,7 @@ jobs:
           APP_PATH="build/LINKDUO.xcarchive/Products/Applications/LINKDUO.app"
           test -d "$APP_PATH"
           test -f "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_PATH/Info.plist" | grep -Fx '2.0.0'
           test -f "$APP_PATH/PrivacyInfo.xcprivacy"
           plutil -lint "$APP_PATH/PrivacyInfo.xcprivacy"
           /usr/libexec/PlistBuddy -c 'Print NSPrivacyAccessedAPITypes:0:NSPrivacyAccessedAPITypeReasons:0' "$APP_PATH/PrivacyInfo.xcprivacy" | grep -Fx 'CA92.1'
