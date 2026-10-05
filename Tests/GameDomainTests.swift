@@ -268,7 +268,9 @@ final class GameDomainTests: XCTestCase {
         XCTAssertEqual(model.settings.customWords.map(\.text), ["犬", "猫", "温泉"])
         let records = (0..<30).map { record("\($0)", won: false, turns: 1, seconds: 4, daysAgo: $0, now: Date()) }
         defaults.set(try JSONEncoder().encode(records), forKey: "link-duo-ios.history.v1")
-        XCTAssertEqual(AppModel(defaults: defaults).history.count, 20)
+        let migrated = AppModel(defaults: defaults)
+        XCTAssertEqual(migrated.history.count, 20)
+        XCTAssertEqual(migrated.stats.games, 30)
     }
 
     @MainActor func testWinRemovesActiveSaveAndRematchStartsFresh() throws {

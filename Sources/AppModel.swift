@@ -6,6 +6,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var settings: GameSettings
     @Published private(set) var game: GameState?
     @Published private(set) var history: [MatchRecord]
+    @Published private(set) var career: CareerStats
     @Published private(set) var tutorialSeen: Bool
     @Published var errorMessage: String?
 
@@ -13,6 +14,7 @@ final class AppModel: ObservableObject {
     private let settingsKey = "link-duo-ios.settings.v1"
     private let gameKey = "link-duo-ios.active-game.v1"
     private let historyKey = "link-duo-ios.history.v1"
+    private let statsKey = "link-duo-ios.stats.v2"
     private let tutorialKey = "link-duo-ios.tutorial-seen.v1"
 
     init(defaults: UserDefaults = .standard) {
@@ -24,9 +26,11 @@ final class AppModel: ObservableObject {
             (1...10).contains($0.text.count) && !$0.text.contains(where: \.isNewline)
         }.prefix(300))
         self.settings = restoredSettings
-        self.history = Array((Self.decode([MatchRecord].self, key: "link-duo-ios.history.v1", defaults: defaults) ?? [])
+        let validHistory = (Self.decode([MatchRecord].self, key: "link-duo-ios.history.v1", defaults: defaults) ?? [])
             .filter { $0.turnsUsed >= 0 && $0.playSeconds >= 0 && (0...15).contains($0.targetsFound) }
-            .prefix(20))
+        self.history = Array(validHistory.prefix(20))
+        let savedStats = Self.decode(CareerStats.self, key: "link-duo-ios.stats.v2", defaults: defaults)
+        self.career = savedStats.flatMap { $0.isValid ? $0 : nil } ?? CareerStats(records: validHistory)
         let restored = Self.decode(GameState.self, key: "link-duo-ios.active-game.v1", defaults: defaults)
         self.game = restored.flatMap { game -> GameState? in
             guard GameEngine.validate(game), game.phase.isActive else { return nil }
@@ -39,12 +43,13 @@ final class AppModel: ObservableObject {
         self.tutorialSeen = defaults.bool(forKey: "link-duo-ios.tutorial-seen.v1")
         Self.encode(self.settings, key: "link-duo-ios.settings.v1", defaults: defaults)
         Self.encode(self.history, key: "link-duo-ios.history.v1", defaults: defaults)
+        Self.encode(self.career, key: "link-duo-ios.stats.v2", defaults: defaults)
         if let game = self.game { Self.encode(game, key: "link-duo-ios.active-game.v1", defaults: defaults) }
         else { defaults.removeObject(forKey: "link-duo-ios.active-game.v1") }
     }
 
     var hasResumableGame: Bool { game?.phase.isActive == true }
-    var stats: MatchStats { StatsCalculator.calculate(history) }
+    var stats: MatchStats { career.summary }
     var customWordCount: Int { settings.customWords.count }
 
     func updateSettings(_ update: (inout GameSettings) -> Void) {
@@ -175,7 +180,9 @@ final class AppModel: ObservableObject {
 
     func clearHistory() {
         history = []
+        career = CareerStats()
         Self.encode(history, key: historyKey, defaults: defaults)
+        Self.encode(career, key: statsKey, defaults: defaults)
     }
 
     private func commit(_ next: GameState) {
@@ -202,7 +209,9 @@ final class AppModel: ObservableObject {
         )
         history.insert(record, at: 0)
         history = Array(history.prefix(20))
+        career.add(record)
         Self.encode(history, key: historyKey, defaults: defaults)
+        Self.encode(career, key: statsKey, defaults: defaults)
     }
 
     private static func normalized(_ text: String) -> String {

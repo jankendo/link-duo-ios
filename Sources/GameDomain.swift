@@ -195,6 +195,50 @@ struct MatchStats {
     let fastestSeconds: Int?
 }
 
+struct CareerStats: Codable {
+    var schemaVersion = 2
+    var games = 0
+    var wins = 0
+    var currentStreak = 0
+    var bestStreak = 0
+    var totalWinTurns = 0
+    var fastestSeconds: Int?
+
+    init() {}
+
+    init(records: [MatchRecord]) {
+        self.init()
+        for record in records.sorted(by: { $0.date < $1.date }) { add(record) }
+    }
+
+    mutating func add(_ record: MatchRecord) {
+        games += 1
+        if record.won {
+            wins += 1
+            currentStreak += 1
+            bestStreak = max(bestStreak, currentStreak)
+            totalWinTurns += record.turnsUsed
+            fastestSeconds = min(fastestSeconds ?? record.playSeconds, record.playSeconds)
+        } else {
+            currentStreak = 0
+        }
+    }
+
+    var summary: MatchStats {
+        MatchStats(games: games, wins: wins,
+                   winRate: games == 0 ? 0 : Int((Double(wins) / Double(games) * 100).rounded()),
+                   currentStreak: currentStreak, bestStreak: bestStreak,
+                   averageTurns: wins == 0 ? nil : Double(totalWinTurns) / Double(wins),
+                   fastestSeconds: fastestSeconds)
+    }
+
+    var isValid: Bool {
+        schemaVersion == 2 && games >= 0 && (0...games).contains(wins) &&
+            (0...wins).contains(currentStreak) && (currentStreak...wins).contains(bestStreak) &&
+            totalWinTurns >= 0 && (fastestSeconds.map { $0 >= 0 } ?? true)
+    }
+}
+
 enum GameError: LocalizedError {
     case insufficientWords
     case invalidTurns
